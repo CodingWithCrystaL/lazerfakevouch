@@ -1,7 +1,7 @@
 // index.js
 // Auto vouch bot – every 15 minutes sends TWO vouches:
 // - 2 different random server members as voucher (if possible)
-// - same random middleman for both
+// - same random middleman for oth
 // - second vouch has "Proof of trade" button
 // - button shows a random video link
 // - voucher's PFP is used as embed thumbnail
@@ -202,3 +202,4 @@ client.on(Events.InteractionCreate, async (interaction) => {
 });
 
 client.login(TOKEN);
+
