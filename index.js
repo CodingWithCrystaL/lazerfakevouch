@@ -85,7 +85,7 @@ function buildVouchEmbed(member, middlemanId) {
       `**⤷ ${voucherMention} has successfully provided a vouch for our service.**\n\n` +
       `👥 **Middleman:** ${middlemanMention}`
     )
-    .setColor(0xffa500) // Orange
+    .setColor(0x9b5cff) // Orange
     .setFooter({ text: "Trusted Vouch System" })
     .setTimestamp();
 
@@ -202,4 +202,5 @@ client.on(Events.InteractionCreate, async (interaction) => {
 });
 
 client.login(TOKEN);
+
 
