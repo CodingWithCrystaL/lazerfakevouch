@@ -1,7 +1,7 @@
 // index.js
 // Auto vouch bot – every 15 minutes sends TWO vouches:
 // - 2 different random server members as voucher (if possible)
-// - same random middleman for oth
+// - same random middleman for both
 // - second vouch has "Proof of trade" button
 // - button shows a random video link
 // - voucher's PFP is used as embed thumbnail
@@ -15,7 +15,8 @@ const {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
-  Events
+  Events,
+  ActivityType // Added for status
 } = require("discord.js");
 const express = require("express"); // for keep-alive server
 
@@ -64,13 +65,16 @@ app.listen(PORT, () => {
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMembers
+    GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.GuildMessages, // Added for message sending
+    GatewayIntentBits.MessageContent // Added for message content access
   ],
   partials: [Partials.GuildMember]
 });
 
 // Helper – random element from array
 function randomFromArray(arr) {
+  if (!arr || arr.length === 0) return null;
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
@@ -85,7 +89,7 @@ function buildVouchEmbed(member, middlemanId) {
       `**⤷ ${voucherMention} has successfully provided a vouch for our service.**\n\n` +
       `👥 **Middleman:** ${middlemanMention}`
     )
-    .setColor(0x9b5cff) // Orange
+    .setColor(0x9b5cff) // Purple color (0x9b5cff is purple, not orange)
     .setFooter({ text: "Trusted Vouch System" })
     .setTimestamp();
 
@@ -93,7 +97,8 @@ function buildVouchEmbed(member, middlemanId) {
     embed.setThumbnail(
       member.user.displayAvatarURL({
         extension: "png",
-        size: 512
+        size: 512,
+        dynamic: true // Added dynamic for better compatibility
       })
     );
   }
@@ -148,12 +153,13 @@ async function sendAutoVouchPair() {
         .setCustomId("proof_of_trade")
         .setLabel("Proof of trade")
         .setStyle(ButtonStyle.Secondary)
+        .setEmoji("📹") // Added emoji for better visual
     );
 
     await channel.send({ embeds: [embed1] });
     await channel.send({ embeds: [embed2], components: [row] });
 
-    console.log(`✅ Sent vouch pair in #${channel.id}`);
+    console.log(`✅ Sent vouch pair in #${channel.name} (${channel.id}) at ${new Date().toLocaleTimeString()}`);
   } catch (err) {
     console.error("❌ Error while sending auto vouch pair:", err);
   }
@@ -162,12 +168,25 @@ async function sendAutoVouchPair() {
 // Ready event
 client.once(Events.ClientReady, async (c) => {
   console.log(`🤖 Logged in as ${c.user.tag}`);
+  console.log(`📊 Bot Name: ${c.user.username}`);
+  console.log(`🆔 Bot ID: ${c.user.id}`);
+  console.log(`🏠 Serving ${c.guilds.cache.size} server(s)`);
+
+  // Set bot status to show which bot is online
+  client.user.setPresence({
+    activities: [{
+      name: `Auto Vouch Bot | ${c.user.username}`,
+      type: ActivityType.Custom // or ActivityType.Watching
+    }],
+    status: 'online'
+  });
 
   // First pair immediately
   await sendAutoVouchPair();
-
+  
   // Then forever every 15 minutes
   setInterval(sendAutoVouchPair, VOUCH_INTERVAL);
+  console.log(`⏰ Auto-vouch interval set to 15 minutes (${VOUCH_INTERVAL}ms)`);
 });
 
 // Handle button click for "Proof of trade"
@@ -176,19 +195,19 @@ client.on(Events.InteractionCreate, async (interaction) => {
   if (interaction.customId !== "proof_of_trade") return;
 
   try {
+    await interaction.deferReply({ ephemeral: true }); // Defer reply to handle async operations
+
     if (!VIDEOS.length) {
-      await interaction.reply({
-        content: "No proof videos are configured yet.",
-        ephemeral: true
+      await interaction.editReply({
+        content: "No proof videos are configured yet."
       });
       return;
     }
 
     const video = randomFromArray(VIDEOS);
 
-    await interaction.reply({
-      content: `📹 Proof of trade:\n${video}`,
-      ephemeral: true
+    await interaction.editReply({
+      content: `📹 **Proof of trade:**\n${video}\n\n*This is an automated vouch system.*`
     });
   } catch (err) {
     console.error("❌ Error handling proof button:", err);
@@ -197,10 +216,27 @@ client.on(Events.InteractionCreate, async (interaction) => {
         content: "Something went wrong while fetching proof of trade.",
         ephemeral: true
       });
+    } else {
+      await interaction.editReply({
+        content: "❌ Failed to fetch proof video. Please try again later."
+      });
     }
   }
 });
 
-client.login(TOKEN);
+// Error handling for the client
+client.on('error', console.error);
+client.on('warn', console.warn);
 
+// Start the bot
+client.login(TOKEN).catch(err => {
+  console.error("❌ Failed to log in:", err);
+  process.exit(1);
+});
 
+// Graceful shutdown
+process.on('SIGINT', () => {
+  console.log('\n👋 Shutting down vouch bot gracefully...');
+  client.destroy();
+  process.exit(0);
+});
